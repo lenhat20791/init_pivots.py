@@ -56,69 +56,52 @@ def parse_date(date_str):
 def parse_pivot_input(pivot_text):
     """
     Phân tích cú pháp đầu vào để tạo pivot
-    Định dạng: 
-        <loại>:<giá>:<thời_gian> - chỉ giờ:phút, sử dụng ngày hiện tại
-        <loại>:<giá>:<ngày>:<thời_gian> - ngày giờ đầy đủ
-        
-    Hỗ trợ hai định dạng ngày:
-        - YYYY-MM-DD (2025-03-23)
-        - DD-MM-YYYY (23-03-2025)
-        
-    Ví dụ: 
-        LL:79894:00:30  => sử dụng ngày hiện tại
-        LL:79894:2025-03-23:00:30  => YYYY-MM-DD
-        LL:79894:23-03-2025:00:30  => DD-MM-YYYY
+    Hỗ trợ các định dạng:
+    - LL:83597:06:30 (không có ngày)
+    - LL:83597:2025-03-23:06:30 (năm-tháng-ngày)
+    - LL:83597:23-03-2025:06:30 (ngày-tháng-năm)
     """
     try:
-        print(f"DEBUG - Parsing input: {pivot_text}")  # In ra console
-        
+        print(f"Parsing pivot input: {pivot_text}")
         parts = pivot_text.strip().split(":")
-        print(f"DEBUG - Parts: {parts}")
         
-        
-        # Kiểm tra định dạng đầu vào
+        # Kiểm tra số lượng phần tử tối thiểu
         if len(parts) < 3:
+            print("Không đủ thành phần trong input")
             return None
             
         pivot_type = parts[0].upper()  # LL, LH, HL, HH
         price = float(parts[1])
         
-        # Lấy ngày hiện tại theo múi giờ Việt Nam
-        now = datetime.now(pytz.timezone('Asia/Ho_Chi_Minh'))
-        
-        # Kiểm tra xem có phải định dạng đầy đủ ngày giờ không
-        date_pattern1 = re.compile(r'^\d{4}-\d{2}-\d{2}$')  # YYYY-MM-DD
-        date_pattern2 = re.compile(r'^\d{2}-\d{2}-\d{4}$')  # DD-MM-YYYY
-        
-        if len(parts) >= 4 and (date_pattern1.match(parts[2]) or date_pattern2.match(parts[2])):
-            # Định dạng có ngày và giờ: <loại>:<giá>:<ngày>:<giờ>
-            vn_date = parse_date(parts[2])  # Chuyển đổi sang YYYY-MM-DD
-            time_parts = parts[3:]
+        # Xử lý phần thời gian và ngày tháng
+        vn_date = None
+        if len(parts) == 3:  # Không có ngày: LL:83597:06:30
+            # Lấy ngày hiện tại
+            from datetime import datetime
+            import pytz
+            vn_date = datetime.now(pytz.timezone('Asia/Ho_Chi_Minh')).strftime('%Y-%m-%d')
+            vn_time = parts[2]
+        else:  # Có ngày: LL:83597:23-03-2025:06:30 hoặc LL:83597:2025-03-23:06:30
+            date_part = parts[2]
+            vn_time = parts[3]
             
-            # Xử lý thời gian
-            if len(time_parts) == 1:
-                # Định dạng HH:MM
-                time_str = time_parts[0]
-            else:
-                # Định dạng H:M (ghép lại các phần thời gian)
-                time_str = ":".join(time_parts)
-                
-        else:
-            # Định dạng chỉ có giờ: <loại>:<giá>:<giờ>
-            vn_date = now.strftime("%Y-%m-%d")
-            time_parts = parts[2:]
-            
-            # Xử lý thời gian
-            if len(time_parts) == 1:
-                # Định dạng HH:MM
-                time_str = time_parts[0]
-            else:
-                # Định dạng H:M (ghép lại các phần thời gian)
-                time_str = ":".join(time_parts)
-        
-        # Chuẩn hóa định dạng thời gian
-        time_obj = datetime.strptime(time_str, "%H:%M")
-        time_formatted = time_obj.strftime("%H:%M")
+            # Phân tích cú pháp ngày
+            from datetime import datetime
+            try:
+                # Thử định dạng ngày-tháng-năm
+                if len(date_part.split('-')) == 3:
+                    if int(date_part.split('-')[2]) > 1000:  # Năm có 4 chữ số ở vị trí cuối
+                        # Định dạng DD-MM-YYYY
+                        day, month, year = date_part.split('-')
+                        vn_date = f"{year}-{month}-{day}"
+                    else:
+                        # Định dạng YYYY-MM-DD
+                        vn_date = date_part
+            except:
+                # Nếu không parse được, sử dụng ngày hiện tại
+                import pytz
+                vn_date = datetime.now(pytz.timezone('Asia/Ho_Chi_Minh')).strftime('%Y-%m-%d')
+                print(f"Không parse được ngày '{date_part}', sử dụng ngày hiện tại {vn_date}")
         
         # Xác định direction dựa vào loại pivot
         if pivot_type in ["HH", "LH"]:
@@ -126,16 +109,21 @@ def parse_pivot_input(pivot_text):
         else:  # LL, HL
             direction = "low"
             
-        # Tạo đối tượng pivot
-        return {
+        # Trả về pivot đã phân tích
+        result = {
             "type": pivot_type,
             "price": price,
-            "vn_time": time_formatted,
+            "vn_time": vn_time,
             "vn_date": vn_date,
             "direction": direction,
             "confirmed": True
         }
         
+        print(f"Parsed pivot result: {result}")
+        return result
+        
     except Exception as e:
-        print(f"Lỗi khi phân tích pivot: {str(e)}")
+        print(f"Lỗi trong parse_pivot_input: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
         return None
