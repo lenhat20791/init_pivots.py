@@ -70,7 +70,11 @@ def parse_pivot_input(pivot_text):
         LL:79894:23-03-2025:00:30  => DD-MM-YYYY
     """
     try:
+        print(f"DEBUG - Parsing input: {pivot_text}")  # In ra console
+        
         parts = pivot_text.strip().split(":")
+        print(f"DEBUG - Parts: {parts}")
+        
         
         # Kiểm tra định dạng đầu vào
         if len(parts) < 3:
